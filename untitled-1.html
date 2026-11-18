@@ -27,7 +27,6 @@ nav button:hover,.btn:hover{background:#2a6f97}
 main{max-width:1100px;margin:20px auto;padding:0 15px; min-height: 80vh;}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
 
-/* Căn chỉnh nút bằng Flexbox cho thẳng hàng */
 .card{background:#fff;border-radius:10px;box-shadow:0 1px 4px #0002;overflow:hidden; display:flex; flex-direction:column;}
 .card img,.noimg{width:100%;height:160px;object-fit:cover;background:#ccd;display:flex;align-items:center;justify-content:center;color:#667; text-align:center; flex-direction:column;}
 .card .pic{cursor:pointer}
@@ -40,12 +39,12 @@ main{max-width:1100px;margin:20px auto;padding:0 15px; min-height: 80vh;}
 input,select,textarea{padding:8px;border:1px solid #bbb;border-radius:6px;font-size:14px;width:100%;margin:4px 0 10px}
 label{font-size:13px;font-weight:600}
 table{width:100%;border-collapse:collapse;font-size:14px;background:#fff}
-th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}
+th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left;vertical-align:top}
 th{background:#e9eef5}
 .wrap{overflow-x:auto}
 .tag{padding:2px 8px;border-radius:10px;font-size:12px;color:#fff;background:#888}
 .tag.ok{background:#2d936c}.tag.wait{background:#e08e0b}.tag.bad{background:#c0392b}
-.small{max-width:380px;margin:30px auto}
+.small{max-width:420px;margin:30px auto}
 .row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:140px}
 .big{width:100%;max-height:430px;object-fit:cover;border-radius:8px;display:block}
 .noimg.big{height:260px}
@@ -54,6 +53,7 @@ th{background:#e9eef5}
 .th img{width:95px;height:68px;object-fit:cover;border-radius:6px;cursor:pointer;border:3px solid transparent}
 .th img.sel{border-color:#e63946}
 .x{position:absolute;top:-7px;right:-7px;background:#c0392b;color:#fff;border-radius:50%;width:20px;height:20px;text-align:center;line-height:20px;font-size:14px;cursor:pointer}
+.real{display:block;font-size:12px;color:#2d936c;margin-top:3px}
 
 /* Cam mock */
 .cam-rec {color: red; font-weight: bold; font-size: 14px; margin-top: 10px; animation: blink 1s infinite;}
@@ -113,10 +113,21 @@ const $ = id => document.getElementById(id);
 const money = n => Number(n).toLocaleString("vi-VN")+" đ";
 const esc = s => String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const today = () => new Date().toISOString().slice(0,10);
-const nights = (a,b) => Math.round((new Date(b)-new Date(a))/86400000);
+
+// ====== XỬ LÝ NGÀY GIỜ ======
+const DEF_IN = "14:00", DEF_OUT = "12:00";
+const inT  = b => b.inTime  || DEF_IN;   // đơn cũ chưa có giờ thì dùng giờ mặc định
+const outT = b => b.outTime || DEF_OUT;
+const dt = (d,t) => `${d}T${t}`;                        // ví dụ 2026-11-20T14:00
+const fmtD = d => d.split("-").reverse().join("/");     // 2026-11-20 -> 20/11/2026
+const fmtISO = iso => new Date(iso).toLocaleString("vi-VN",{hour:"2-digit",minute:"2-digit",day:"2-digit",month:"2-digit",year:"numeric"});
+const nights = (a,b) => Math.max(1, Math.round((new Date(b)-new Date(a))/86400000)); // tối thiểu 1 đêm
+
 function roomName(id){ const r=db.rooms.find(r=>r.id==id); return r?r.name:"(đã xóa)"; }
-function overlap(roomId,a,b){
-  return db.bookings.some(x=>x.roomId==roomId && x.status!=="Đã hủy" && x.status!=="Đã trả phòng" && a<x.out && b>x.in);
+// Kiểm tra trùng phòng theo cả ngày và giờ
+function overlap(roomId,start,end){
+  return db.bookings.some(x=>x.roomId==roomId && x.status!=="Đã hủy" && x.status!=="Đã trả phòng"
+    && start < dt(x.out,outT(x)) && end > dt(x.in,inT(x)));
 }
 function go(v){ view=v; render(); window.scrollTo({top:0, behavior:'smooth'}); }
 function isOwner(){ return session && session.role==="owner"; }
@@ -134,7 +145,7 @@ function render(){
   else nav += `
     <button onclick="go('adminRooms')">Phòng</button>
     <button onclick="go('adminBook')">Đơn đặt</button>
-    <button onclick="go('schedule')">Lịch</button>
+    <button onclick="go('schedule')">Lịch vào/ra</button>
     <button onclick="go('adminStaff')">Nhân viên</button>
     <button onclick="go('adminCamera')">Camera</button>
     <button onclick="logout()">Thoát (chủ)</button>`;
@@ -148,7 +159,6 @@ function logout(){ session=null; sessionStorage.removeItem("hotelSession"); go("
 function vLanding(){
   $("app").innerHTML=`
   <div class="landing">
-    <!-- Ảnh bìa khách sạn (Tòa nhà cao tầng về đêm) -->
     <img src="pexels-phamthe-32755076.jpg" alt="Ảnh bìa khách sạn" class="banner">
     
     <h1>inperia sky gaden</h1>
@@ -160,7 +170,6 @@ function vLanding(){
     <h2>Dịch vụ & Tiện ích nổi bật</h2>
     <div class="grid">
       <div class="card">
-        <!-- Ảnh Buffet -->
         <img src="pexels-westernhotel-4873365.jpg" alt="Buffet">
         <div class="in">
           <h3>Nhà hàng & Buffet</h3>
@@ -168,7 +177,6 @@ function vLanding(){
         </div>
       </div>
       <div class="card">
-        <!-- Ảnh Phòng Gym -->
         <img src="pexels-nica-s-photo-235373438-13863730.jpg" alt="Gym">
         <div class="in">
           <h3>Phòng Gym hiện đại</h3>
@@ -176,7 +184,6 @@ function vLanding(){
         </div>
       </div>
       <div class="card">
-        <!-- Ảnh Hồ bơi -->
         <img src="pexels-quang-nguyen-vinh-222549-14022373.jpg" alt="Pool">
         <div class="in">
           <h3>Hồ bơi vô cực</h3>
@@ -186,7 +193,6 @@ function vLanding(){
     </div>
   </div>
 
-  <!-- Bộ sưu tập View Hà Nội -->
   <div class="services" style="margin-top: 40px; padding-bottom: 40px;">
     <h2>View ngắm nhìn toàn cảnh Hà Nội</h2>
     <p style="text-align:center; font-size: 16px; color: #457b9d; margin-bottom: 20px;">Trải nghiệm ngắm nhìn thủ đô ngàn năm văn hiến ngay từ cửa sổ phòng bạn.</p>
@@ -280,12 +286,19 @@ function startBook(id){
   bookRoom=id; go("book");
 }
 
+// ====== ĐẶT PHÒNG (có giờ vào / giờ ra) ======
 function vBook(){
   const r=db.rooms.find(r=>r.id==bookRoom);
   $("app").innerHTML=`<div class="box small"><h2>Đặt ${esc(r.name)}</h2>
   <div class="price">${money(r.price)} / đêm</div>
-  <label>Ngày nhận phòng</label><input type="date" id="b_in" min="${today()}" onchange="calc()">
-  <label>Ngày trả phòng</label><input type="date" id="b_out" min="${today()}" onchange="calc()">
+  <div class="row">
+    <div><label>Ngày nhận phòng</label><input type="date" id="b_in" min="${today()}" onchange="calc()"></div>
+    <div><label>Giờ vào</label><input type="time" id="b_inT" value="${DEF_IN}" onchange="calc()"></div>
+  </div>
+  <div class="row">
+    <div><label>Ngày trả phòng</label><input type="date" id="b_out" min="${today()}" onchange="calc()"></div>
+    <div><label>Giờ ra</label><input type="time" id="b_outT" value="${DEF_OUT}" onchange="calc()"></div>
+  </div>
   <label>Hình thức thanh toán</label>
   <select id="b_pay" onchange="toggleQR()">
     <option value="cash">Tiền mặt (trả khi nhận phòng)</option>
@@ -295,7 +308,7 @@ function vBook(){
   <div id="qr_box" style="display:none; text-align:center; margin-top:15px; padding:15px; border:1px dashed #457b9d; border-radius:8px; background:#f0f8ff;">
     <p style="margin-top:0; font-size:14px; font-weight:bold; color:#1d3557;">Quét mã QR dưới đây để thanh toán</p>
     ${db.qrImg ? `<img src="${db.qrImg}" style="max-width:100%; max-height:250px; border-radius:8px; border:1px solid #ccc;">` : `<p style="color:red; font-size:13px; font-style:italic;">Khách sạn chưa cài đặt mã QR. Vui lòng thanh toán tiền mặt.</p>`}
-    <p style="margin-bottom:0; font-size:13px; color:#333; margin-top:10px;">Nội dung CK: <b style="color:#e63946">${session.user} thanh toan ${esc(r.name)}</b></p>
+    <p style="margin-bottom:0; font-size:13px; color:#333; margin-top:10px;">Nội dung CK: <b style="color:#e63946">${esc(session.user)} thanh toan ${esc(r.name)}</b></p>
   </div>
   <p id="b_total"></p>
   <button class="btn green" onclick="doBook()">Xác nhận đặt phòng</button> <button class="btn gray" onclick="go('rooms')">Hủy</button></div>`;
@@ -305,15 +318,19 @@ function toggleQR(){
 }
 function calc(){
   const a=$("b_in").value,b=$("b_out").value,r=db.rooms.find(r=>r.id==bookRoom);
-  $("b_total").innerHTML = (a&&b&&b>a) ? `${nights(a,b)} đêm. Tổng tiền: <b class="price">${money(nights(a,b)*r.price)}</b>` : "";
+  if(!a||!b||dt(b,$("b_outT").value||DEF_OUT) <= dt(a,$("b_inT").value||DEF_IN)){ $("b_total").innerHTML=""; return; }
+  const n=nights(a,b);
+  $("b_total").innerHTML = `Vào: <b>${fmtD(a)} lúc ${$("b_inT").value}</b><br>Ra: <b>${fmtD(b)} lúc ${$("b_outT").value}</b><br>${n} đêm. Tổng tiền: <b class="price">${money(n*r.price)}</b>`;
 }
 function doBook(){
-  const a=$("b_in").value,b=$("b_out").value,pay=$("b_pay").value,r=db.rooms.find(r=>r.id==bookRoom);
-  if(!a||!b||b<=a) return alert("Chọn ngày nhận và trả hợp lệ.");
+  const a=$("b_in").value,b=$("b_out").value,ta=$("b_inT").value,tb=$("b_outT").value,pay=$("b_pay").value,r=db.rooms.find(r=>r.id==bookRoom);
+  if(!a||!b||!ta||!tb) return alert("Vui lòng chọn đủ ngày và giờ vào, ra.");
   if(a<today()) return alert("Ngày nhận phòng không ở quá khứ.");
-  if(overlap(bookRoom,a,b)) return alert("Phòng đã có người đặt trong thời gian này.");
+  const start=dt(a,ta), end=dt(b,tb);
+  if(end<=start) return alert("Thời gian trả phòng phải sau thời gian nhận phòng.");
+  if(overlap(bookRoom,start,end)) return alert("Phòng đã có người đặt trong khoảng thời gian này, hãy chọn giờ hoặc ngày khác.");
   const total=nights(a,b)*r.price;
-  const bk={id:Date.now(),roomId:bookRoom,guest:session.user,in:a,out:b,total,method:pay,paid:false,status:"Chờ nhận phòng"};
+  const bk={id:Date.now(),roomId:bookRoom,guest:session.user,in:a,inTime:ta,out:b,outTime:tb,total,method:pay,paid:false,status:"Chờ nhận phòng",actualIn:null,actualOut:null};
   if(pay==="online"){
     if(!db.qrImg) return alert("Hệ thống chưa có ảnh QR, vui lòng chọn thanh toán Tiền mặt.");
     if(!confirm("XÁC NHẬN CHUYỂN KHOẢN\nBạn có chắc chắn đã chuyển khoản thành công?")) return;
@@ -333,9 +350,13 @@ function cancelBook(id){
 
 function payTag(b){ return b.paid?`<span class="tag ok">Đã thanh toán</span>`:`<span class="tag wait">Chưa thanh toán</span>`; }
 function statTag(b){ const c=b.status==="Đang ở"?"ok":b.status==="Đã hủy"?"bad":b.status==="Chờ nhận phòng"?"wait":""; return `<span class="tag ${c}">${b.status}</span>`; }
+// Hiển thị giờ vào / giờ ra (kèm giờ thực tế nếu đã nhận/trả phòng)
+function inCell(b){ return `${fmtD(b.in)} <b>${inT(b)}</b>` + (b.actualIn?`<span class="real">Đã vào: ${fmtISO(b.actualIn)}</span>`:""); }
+function outCell(b){ return `${fmtD(b.out)} <b>${outT(b)}</b>` + (b.actualOut?`<span class="real">Đã ra: ${fmtISO(b.actualOut)}</span>`:""); }
+
 function tableBookings(list,admin){
   if(!list.length) return "<p>Chưa có đặt phòng nào.</p>";
-  return `<table><tr><th>Phòng</th><th>Khách</th><th>Vào</th><th>Ra</th><th>Tổng tiền</th><th>Thanh toán</th><th>Trạng thái</th><th></th></tr>`+
+  return `<table><tr><th>Phòng</th><th>Khách</th><th>Giờ vào</th><th>Giờ ra</th><th>Tổng tiền</th><th>Thanh toán</th><th>Trạng thái</th><th></th></tr>`+
   [...list].reverse().map(b=>{
     let act="";
     if(admin){
@@ -344,12 +365,18 @@ function tableBookings(list,admin){
       if(b.status==="Đang ở") act+=`<button class="btn red" onclick="setStatus(${b.id},'Đã trả phòng')">Trả phòng</button> `;
       if(b.status==="Chờ nhận phòng") act+=`<button class="btn gray" onclick="cancelBook(${b.id})">Hủy</button>`;
     } else if(b.status==="Chờ nhận phòng") act=`<button class="btn gray" onclick="cancelBook(${b.id})">Hủy</button>`;
-    return `<tr><td>${esc(roomName(b.roomId))}</td><td>${esc(guestLabel(b.guest))}</td><td>${b.in}</td><td>${b.out}</td><td>${money(b.total)}</td><td>${payTag(b)}</td><td>${statTag(b)}</td><td>${act}</td></tr>`;
+    return `<tr><td>${esc(roomName(b.roomId))}</td><td>${esc(guestLabel(b.guest))}</td><td>${inCell(b)}</td><td>${outCell(b)}</td><td>${money(b.total)}</td><td>${payTag(b)}</td><td>${statTag(b)}</td><td>${act}</td></tr>`;
   }).join("")+`</table>`;
 }
 function guestLabel(u){ const g=db.users.find(x=>x.user===u); return g?`${g.name} (${g.phone})`:u; }
 function markPaid(id){ const b=db.bookings.find(b=>b.id==id); b.paid=true; save(); render(); }
-function setStatus(id,s){ const b=db.bookings.find(b=>b.id==id); b.status=s; if(s==="Đã trả phòng") b.paid=true; save(); render(); }
+function setStatus(id,s){
+  const b=db.bookings.find(b=>b.id==id);
+  b.status=s;
+  if(s==="Đang ở") b.actualIn=new Date().toISOString();      // ghi giờ vào thực tế
+  if(s==="Đã trả phòng"){ b.actualOut=new Date().toISOString(); b.paid=true; } // ghi giờ ra thực tế
+  save(); render();
+}
 
 function needOwner(){ if(!isOwner()){ go("login"); return false;} return true; }
 function vAdminRooms(){
@@ -416,13 +443,15 @@ function uploadQR(inp){
   if(!files.length) return;
   readImg(files[0]).then(res => { db.qrImg = res; save(); render(); alert("Tải lên mã QR thành công!"); });
 }
+
+// ====== LỊCH VÀO/RA TỪNG PHÒNG (có giờ) ======
 function vSchedule(){
   if(!needOwner()) return;
   $("app").innerHTML=`<h2>Lịch vào/ra của từng phòng</h2>`+db.rooms.map(r=>{
-    const list=db.bookings.filter(b=>b.roomId==r.id && b.status!=="Đã hủy").sort((a,b)=>a.in.localeCompare(b.in));
+    const list=db.bookings.filter(b=>b.roomId==r.id && b.status!=="Đã hủy").sort((a,b)=>dt(a.in,inT(a)).localeCompare(dt(b.in,inT(b))));
     const busy=list.some(b=>b.status==="Đang ở");
     return `<div class="box"><h3>${esc(r.name)} <span class="tag ${busy?"bad":"ok"}">${busy?"Đang có khách":"Đang trống"}</span></h3>`+
-    (list.length?`<table><tr><th>Khách</th><th>Vào lúc</th><th>Ra lúc</th><th>Trạng thái</th></tr>`+list.map(b=>`<tr><td>${esc(guestLabel(b.guest))}</td><td>${b.in}</td><td>${b.out}</td><td>${statTag(b)}</td></tr>`).join("")+`</table>`:"<p>Chưa có lịch đặt.</p>")+`</div>`;
+    (list.length?`<div class="wrap"><table><tr><th>Khách</th><th>Giờ vào</th><th>Giờ ra</th><th>Trạng thái</th></tr>`+list.map(b=>`<tr><td>${esc(guestLabel(b.guest))}</td><td>${inCell(b)}</td><td>${outCell(b)}</td><td>${statTag(b)}</td></tr>`).join("")+`</table></div>`:"<p>Chưa có lịch đặt.</p>")+`</div>`;
   }).join("");
 }
 
